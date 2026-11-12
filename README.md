@@ -210,10 +210,8 @@ The app opens at `http://localhost:8501`.
 
 ## 👤 Author
 
-**Your Name**
-🎓 B.Tech / B.E. in <Your Branch>, <Your College>
-📧 your.email@example.com
-💼 [LinkedIn](https://linkedin.com/in/your-profile) · 🐙 [GitHub](https://github.com/your-username)
+**Arsalan Bilal**
+📧 arsalanbilal11@gmail.com
 
 ---
 
