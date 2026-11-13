@@ -1,8 +1,8 @@
 streamlit
-langchain
+python-dotenv
 langchain-core
-langchain-community
 langchain-groq
 langgraph
 langsmith
-python-dotenv
+mcp<2
+requests
