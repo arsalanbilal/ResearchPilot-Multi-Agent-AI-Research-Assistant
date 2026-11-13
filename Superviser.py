@@ -1,3 +1,10 @@
+"""
+Supervisor Multi-AI-Agent System - Streamlit app
+Superviser -> Researcher -> Analyst -> Writer (LangGraph + Groq + optional LangSmith)
+
+Run:  streamlit run Superviser.py
+"""
+
 import os
 import re
 from datetime import datetime
@@ -98,8 +105,10 @@ Be concise but thorough."""
         try:
             research, tools_used = research_with_mcp(llm, prompt)
         except Exception as exc:  # MCP server/network problem -> plain LLM answer
+            while getattr(exc, "exceptions", None):  # unwrap anyio TaskGroup errors
+                exc = exc.exceptions[0]
             research, tools_used = llm.invoke(prompt).content, []
-            st.warning(f"MCP tools unavailable, answered from model knowledge only: {exc}")
+            st.warning(f"MCP tools unavailable, answered from model knowledge only: {type(exc).__name__}: {exc}")
         used = ", ".join(tools_used) if tools_used else "none"
         return {
             "messages": [AIMessage(content=f"Researcher : Research done on '{task}'. Tools used: {used}\n\n{research}")],
