@@ -70,9 +70,16 @@ async def _research_async(llm, research_prompt: str) -> Tuple[str, List[str]]:
                     text = f"Tool error: {exc}"
                 messages.append(ToolMessage(content=text, tool_call_id=call["id"]))
 
-        # Out of rounds: force a final answer without tools
-        final = await llm.ainvoke(messages)
-        return str(final.content), used
+        # Out of rounds: ask for a final answer without tools
+        messages.append(
+            HumanMessage(content="Now write your final research answer using the information above. Do not call any tools.")
+        )
+        try:
+            final = await llm.ainvoke(messages)
+            return str(final.content), used
+        except Exception:  # noqa: BLE001  (some models still try a tool call here)
+            raw = "\n\n".join(m.content for m in messages if isinstance(m, ToolMessage))
+            return f"Live data collected by the tools:\n\n{raw}", used
 
 
 def research_with_mcp(llm, research_prompt: str) -> Tuple[str, List[str]]:
