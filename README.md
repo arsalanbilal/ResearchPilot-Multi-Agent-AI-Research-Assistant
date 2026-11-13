@@ -1,97 +1,89 @@
 # 🤖 Supervisor Multi-AI-Agent System
 
-A multi-agent AI application where a **Supervisor** coordinates a **Researcher → Analyst → Writer** pipeline to turn a single question into a structured executive report. The Researcher is connected to **live news and Wikipedia** through a custom **Model Context Protocol (MCP)** server, so it can answer questions about recent events, not just what the model memorised in training.
+A multi-agent AI application where a **Supervisor** coordinates a **Researcher**, an **Analyst** and a **Writer** to turn a single question into a structured, downloadable report. The Researcher uses **live news and Wikipedia data** through a custom **MCP (Model Context Protocol) server**, and every run can be traced end-to-end in **LangSmith**.
 
-Built with **LangGraph**, **Groq (LLMs)**, **MCP**, **LangSmith** and **Streamlit**.
+Built with **LangGraph, Groq (open-source LLMs), MCP, LangSmith and Streamlit**.
 
----
-
-## 📌 Table of Contents
-1. [Problem Statement](#-problem-statement)
-2. [Key Features](#-key-features)
-3. [Architecture](#-architecture)
-4. [Tech Stack](#-tech-stack)
-5. [Project Structure](#-project-structure)
-6. [Getting Started](#-getting-started)
-7. [Usage](#-usage)
-8. [How It Works](#-how-it-works)
-9. [Design Decisions](#-design-decisions)
-10. [Limitations & Future Work](#-limitations--future-work)
-11. [What I Learned](#-what-i-learned)
-12. [Author](#-author)
+> 🔗 **Live demo:** _add your deployed link here (optional)_
+> 🎥 **Demo video / screenshots:** _add here_
 
 ---
 
-## 🎯 Problem Statement
+## 📌 Problem Statement
 
-A single LLM call is often not enough for a good research report: it mixes research, analysis and writing in one step, and it cannot answer questions about **recent events** because its knowledge is frozen at training time.
+A single LLM prompt often gives shallow answers and relies only on its training data, so it can't talk about recent events. Real research work is split into steps: gather information, analyse it, then write it up.
 
-This project splits the work between specialised agents, each with one responsibility, managed by a supervisor. It also gives the research agent access to live data through MCP.
-
----
-
-## ✨ Key Features
-
-- **Supervisor pattern**: a supervisor agent decides which agent works next, orchestrated as a state graph with LangGraph.
-- **Specialised agents**: Researcher (gathers information), Analyst (insights, risks, recommendations), Writer (final Markdown report).
-- **Live information via MCP**: the Researcher calls tools from a custom MCP server for latest news and Wikipedia.
-- **Guard-rails**: the supervisor's LLM decision is validated against the required order (Researcher → Analyst → Writer), so the workflow cannot loop or skip a step.
-- **Graceful fallback**: if the MCP server is unreachable, the Researcher falls back to the model's own knowledge and tells the user.
-- **Observability**: optional LangSmith tracing with region/workspace support and an in-app connection test and trace verification.
-- **Friendly UI**: Streamlit app with live agent progress, model selection, temperature control and a one-click report download (`.md`).
-- **Secure by default**: API keys are entered in the sidebar (or `.env`), used only for the session and never written to disk.
+This project mimics that workflow with specialised agents, each with one job, managed by a supervisor, and gives the Researcher access to live data so reports are not limited to the model's knowledge cutoff.
 
 ---
 
-## 🏗 Architecture
+## ✨ Features
 
-```
-                        ┌──────────────────────────┐
-        User Task ────▶ │        SUPERVISOR        │ ◀──────────────┐
-                        │ (decides next agent +    │                │
-                        │  pipeline guard-rail)    │                │
-                        └────────────┬─────────────┘                │
-                                     │                              │
-                 ┌───────────────────┼───────────────────┐          │
-                 ▼                   ▼                   ▼          │
-          ┌────────────┐      ┌────────────┐      ┌────────────┐    │
-          │ RESEARCHER │      │  ANALYST   │      │   WRITER   │    │
-          │ (MCP host) │      │            │      │            │────┘
-          └─────┬──────┘      └────────────┘      └────────────┘
-                │  MCP client (stdio)                    │
-                ▼                                        ▼
-        ┌───────────────────┐                   📄 Final Markdown Report
-        │    MCP SERVER     │
-        │ • get_latest_news │──▶ Google News RSS
-        │ • wikipedia_search│──▶ Wikipedia API
-        │ • wikipedia_      │
-        │   current_events  │
-        └───────────────────┘
+- **Multi-agent workflow** orchestrated with LangGraph (Supervisor → Researcher → Analyst → Writer)
+- **Custom MCP server** exposing live-data tools (news and Wikipedia), with no paid API keys required
+- **MCP client + tool-calling loop**: the LLM decides when to call tools, and the client forwards calls to the server
+- **Graceful fallback**: if the MCP server or network fails, the Researcher answers from model knowledge and shows a warning instead of crashing
+- **Deterministic routing guard-rail**: the pipeline order is enforced in code so agents can never loop forever
+- **LangSmith observability**: enabled just by setting environment variables, with no custom tracing code
+- **Streamlit UI**: choose the Groq model, set temperature, watch each agent's output live, and download the final report as Markdown
+- **Secure key handling**: API keys are entered in the sidebar or loaded from `.env`, never hard-coded
 
-        LangSmith traces every run (optional)
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    U[User task] --> S{Superviser}
+    S -->|1| R[Researcher]
+    R -->|research| S
+    S -->|2| A[Analyst]
+    A -->|analysis| S
+    S -->|3| W[Writer]
+    W --> OUT[Final report .md]
+
+    R <-->|tool calls over stdio| C[MCP Client]
+    C <--> M[(MCP Server)]
+    M --> N[Google News RSS]
+    M --> K[Wikipedia API]
 ```
 
-**MCP roles in this project**
+| Agent | Responsibility |
+|---|---|
+| **Superviser** | Looks at the current state and assigns the next agent |
+| **Researcher** | Gathers facts, trends, statistics and examples, using live tools when the topic is recent |
+| **Analyst** | Extracts insights, risks, opportunities and recommendations from the research |
+| **Writer** | Produces a structured executive report in Markdown |
 
-| Role | Component | Responsibility |
-|------|-----------|----------------|
-| **Host** | `superviser.py` (Researcher agent) | Owns the LLM, decides when tools are needed |
-| **Client** | `mcp_client.py` | Starts the server, lists tools, forwards tool calls |
-| **Server** | `mcp_news_server.py` | Exposes news and Wikipedia tools |
+### MCP roles
+
+| Role | File | What it does |
+|---|---|---|
+| **Host** | `Superviser.py` (Researcher agent) | Owns the LLM and decides when tools are used |
+| **Client** | `mcp_client.py` | Opens an MCP session, lists tools, forwards the LLM's tool calls |
+| **Server** | `mcp_news_server.py` | Implements the tools and talks to external sources |
+
+### MCP tools
+
+| Tool | Purpose |
+|---|---|
+| `get_latest_news(query, max_results)` | Live headlines with source, date and link (Google News RSS) |
+| `wikipedia_current_events()` | What is happening in the world today (Wikipedia Current events portal) |
+| `wikipedia_search(query, max_results)` | Short background summaries from Wikipedia |
 
 ---
 
-## 🧰 Tech Stack
+## 🛠️ Tech Stack
 
 | Area | Technology |
-|------|-----------|
+|---|---|
 | Language | Python 3.10+ |
-| Agent orchestration | LangGraph, LangChain |
-| LLM provider | Groq (Llama 3.3 70B, Llama 3.1 8B, GPT-OSS) |
-| Tool protocol | Model Context Protocol (`mcp` Python SDK, FastMCP) |
+| Agent orchestration | LangGraph, LangChain Core |
+| LLM provider | Groq (Llama 3.3 70B, Llama 3.1 8B, GPT-OSS models) |
+| Tool protocol | Model Context Protocol (`mcp`), stdio transport |
 | Observability | LangSmith |
-| Frontend | Streamlit |
-| Data sources | Google News RSS, Wikipedia REST/Action API (no API keys needed) |
+| UI | Streamlit |
+| Data sources | Google News RSS, Wikipedia API |
 
 ---
 
@@ -99,11 +91,11 @@ This project splits the work between specialised agents, each with one responsib
 
 ```
 .
-├── superviser.py          # Streamlit app + LangGraph supervisor workflow + agents
-├── mcp_client.py          # MCP client: connects the Researcher to the MCP server
-├── mcp_news_server.py     # MCP server: live news + Wikipedia tools
+├── Superviser.py          # Streamlit app + LangGraph workflow (Supervisor, Researcher, Analyst, Writer)
+├── mcp_client.py          # MCP client + tool-calling loop used by the Researcher
+├── mcp_news_server.py     # MCP server exposing news and Wikipedia tools
 ├── requirements.txt       # Python dependencies
-├── .env                   # (optional) API keys, not committed
+├── .env.example           # Template for environment variables
 └── README.md
 ```
 
@@ -111,108 +103,108 @@ This project splits the work between specialised agents, each with one responsib
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Python 3.10 or higher
-- A free [Groq API key](https://console.groq.com/keys)
-- (Optional) A [LangSmith API key](https://smith.langchain.com) for tracing
-
-### Installation
+### 1. Clone the repository
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/<your-username>/<your-repo>.git
 cd <your-repo>
+```
 
-# 2. (Recommended) create a virtual environment
+### 2. Create a virtual environment and install dependencies
+
+```bash
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
 
-# 3. Install dependencies
 pip install -r requirements.txt
 ```
 
-### Configuration (optional)
+### 3. Add your API keys
 
-You can type keys in the app sidebar, or create a `.env` file:
+Create a `.env` file (or type the keys into the app sidebar):
 
 ```env
-GROQ_API_KEY=gsk_your_key_here
-LANGSMITH_API_KEY=lsv2_your_key_here
+GROQ_API_KEY=your_groq_key              # free at https://console.groq.com/keys
+
+# Optional: LangSmith tracing
+LANGSMITH_API_KEY=your_langsmith_key
 LANGSMITH_PROJECT=Supervisor-Multi-Agent
-LANGSMITH_WORKSPACE_ID=            # only if your LangSmith key is org-scoped
 ```
 
-### Run
+### 4. Run the app
 
 ```bash
-streamlit run superviser.py
+streamlit run Superviser.py
 ```
-
-The app opens at `http://localhost:8501`.
 
 ---
 
 ## 💡 Usage
 
-1. Enter your **Groq API key** in the sidebar (and optionally LangSmith details).
+1. Enter your Groq API key in the sidebar (and optionally a LangSmith key).
 2. Pick a model and temperature.
 3. Type a task, for example:
    - `What are the benefits of AI in Healthcare`
-   - `Latest news on electric vehicles this week` *(triggers live news tools)*
-4. Click **Run Multi-Agent Team** and watch each agent report its progress.
-5. Read the final report and download it as a Markdown file.
+   - `Latest news on electric vehicles in India`
+4. Click **🚀 Run Multi-Agent Team** and watch each agent work.
+5. Read the final report and download it as a `.md` file.
+
+For recent or breaking topics, the Researcher message shows which MCP tools were used, for example `Tools used: get_latest_news`.
 
 ---
 
-## ⚙️ How It Works
+## 🔍 LangSmith Tracing
 
-1. **Supervisor** reads the shared state (has research? analysis? report?) and picks the next agent. The LLM's choice is checked against a guard-rail that enforces the correct order.
-2. **Researcher** starts the MCP server over stdio, loads its tools, and lets the LLM call them in a short tool-calling loop (max 4 rounds). For recent-news questions it uses `get_latest_news`; for background it uses `wikipedia_search`.
-3. **Analyst** turns the research into insights, risks, opportunities and recommendations.
-4. **Writer** compiles a structured report: Executive Summary, Key Findings, Analysis & Insights, Recommendations, Conclusion.
-5. The graph ends when the report is complete, and every step is traced in **LangSmith** if enabled.
+Tracing needs no custom code. LangChain and LangGraph read these environment variables automatically:
 
----
+```python
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_API_KEY"] = "..."
+os.environ["LANGSMITH_PROJECT"] = "Supervisor-Multi-Agent"
+os.environ["LANGSMITH_ENDPOINT"] = "https://eu.api.smith.langchain.com"  # EU accounts only
+```
 
-## 🧠 Design Decisions
-
-- **LLM advisory + deterministic guard-rail**: LLM routing can be unreliable, so the supervisor accepts the model's suggestion only if it matches the valid next step. This prevents infinite loops.
-- **MCP instead of hard-coded API calls**: tools live in a separate server, so they can be reused by other agents or clients and extended without touching agent code.
-- **MCP only for the Researcher**: only that agent needs external data; the Analyst and Writer work on the data they are given.
-- **Keyless data sources**: Google News RSS and Wikipedia keep setup friction low.
-- **LLM injected into the graph**: the user's API key is never stored globally.
+Each run appears as one trace showing every agent step, prompt, tool call and token usage.
 
 ---
 
-## 🔭 Limitations & Future Work
+## 🧠 What I Learned
 
-- News is limited to headlines, sources and links; full article text is not fetched.
-- Wikipedia "current events" may be empty early in the day.
-- Small models may be less reliable at tool calling; larger models are recommended.
-- Planned improvements:
-  - Add more MCP tools (web search, finance data, article extraction)
-  - Add source citations inside the final report
-  - Let the Supervisor re-run the Researcher if the Analyst finds gaps
-  - Persist past reports and add PDF export
-  - Add unit tests and Docker deployment
+- Designing a **multi-agent system** with shared state and conditional routing in LangGraph
+- Implementing the **Model Context Protocol** end to end: building a server, writing a client and connecting it to LLM tool calling
+- Why **guard-rails** matter: LLM routing decisions can be unreliable, so the workflow order is enforced in code to avoid infinite loops
+- Handling failures gracefully (network errors, unavailable tools) so the user always gets a result
+- Adding **observability** with LangSmith to debug and understand agent behaviour
+- Keeping secrets out of source code and structuring a project so each file has one clear responsibility
 
 ---
 
-## 📚 What I Learned
+## ⚠️ Limitations
 
-- Designing **multi-agent workflows** with shared state using LangGraph
-- Implementing the **Model Context Protocol** end to end (server, client and host)
-- **Tool calling** with LLMs and handling failures with fallbacks
-- Adding **observability** to LLM apps with LangSmith
-- Building and securing a small **Streamlit** app that handles user-provided API keys
+- The Researcher's quality depends on the news and Wikipedia sources and on the chosen model's tool-calling support.
+- Live data comes from public endpoints with no guarantees on availability or completeness.
+- Generated reports should be fact-checked before being used for anything important.
+
+---
+
+## 🔮 Future Improvements
+
+- Add more MCP tools (web search, finance data, weather)
+- Let the Supervisor genuinely choose agents dynamically, with validation
+- Add a Reviewer / Critic agent that checks the report and requests revisions
+- Export reports as PDF or Word
+- Add automated tests for the MCP tools
+- Deploy to Streamlit Community Cloud or Docker
 
 ---
 
 ## 👤 Author
 
-**Arsalan Bilal**
-📧 arsalanbilal11@gmail.com
+**Your Name**
+📧 your.email@example.com
+🔗 [LinkedIn](https://linkedin.com/in/your-profile) · 💻 [GitHub](https://github.com/your-username)
 
----
-
-⭐ If you found this project interesting, consider giving it a star!
+If you like this project, please ⭐ the repository!
