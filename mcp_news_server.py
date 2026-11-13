@@ -1,9 +1,3 @@
-"""
-MCP SERVER - live news + Wikipedia tools (no API keys needed).
-Started automatically by mcp_client.py over stdio. Do not print() here,
-stdout is used for the MCP protocol.
-"""
-
 import xml.etree.ElementTree as ET
 
 import requests
