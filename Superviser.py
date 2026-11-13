@@ -1,10 +1,3 @@
-"""
-Supervisor Multi-AI-Agent System - Streamlit app
-Superviser -> Researcher -> Analyst -> Writer (LangGraph + Groq + optional LangSmith)
-
-Run:  streamlit run Superviser.py
-"""
-
 import os
 import re
 from datetime import datetime
@@ -15,6 +8,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_groq import ChatGroq
 from langgraph.graph import END, MessagesState, StateGraph
+
+from mcp_client import research_with_mcp
 
 load_dotenv()
 
@@ -100,9 +95,14 @@ Include:
 4. Notable examples or case studies
 
 Be concise but thorough."""
-        research = llm.invoke(prompt).content
+        try:
+            research, tools_used = research_with_mcp(llm, prompt)
+        except Exception as exc:  # MCP server/network problem -> plain LLM answer
+            research, tools_used = llm.invoke(prompt).content, []
+            st.warning(f"MCP tools unavailable, answered from model knowledge only: {exc}")
+        used = ", ".join(tools_used) if tools_used else "none"
         return {
-            "messages": [AIMessage(content=f"Researcher : Research done on '{task}'.\n\n{research}")],
+            "messages": [AIMessage(content=f"Researcher : Research done on '{task}'. Tools used: {used}\n\n{research}")],
             "research_data": research,
         }
 
