@@ -3,9 +3,20 @@ import json
 from typing import List, Tuple
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
 
-from mcp_news_server import mcp as news_server
+import mcp_news_server
+
+# Find the FastMCP server object in mcp_news_server.py, whatever it is named
+news_server = next(
+    (v for v in vars(mcp_news_server).values() if isinstance(v, FastMCP)), None
+)
+if news_server is None:
+    raise ImportError(
+        "mcp_news_server.py has no FastMCP server (expected: mcp = FastMCP('news-server')). "
+        "Replace it with the provided mcp_news_server.py."
+    )
 
 MAX_TOOL_ROUNDS = 4
 
