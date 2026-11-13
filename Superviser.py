@@ -194,11 +194,10 @@ def main():
 
     with st.sidebar:
         st.header("🔑 API Keys")
-        groq_key = st.text_input("Groq API Key", type="password", value=os.getenv("GROQ_API_KEY", ""))
+        groq_key = st.text_input("Groq API Key", type="password")
         ls_key = st.text_input(
             "LangSmith API Key (optional)",
             type="password",
-            value=os.getenv("LANGSMITH_API_KEY", ""),
             help="Leave empty to disable tracing.",
         )
         ls_project = st.text_input("LangSmith Project", value=os.getenv("LANGSMITH_PROJECT", "Supervisor-Multi-Agent"))
