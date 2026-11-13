@@ -3,6 +3,7 @@ import json
 from typing import List, Tuple
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langsmith import traceable
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
 
@@ -49,6 +50,13 @@ async def _research_async(llm, research_prompt: str) -> Tuple[str, List[str]]:
         tools = (await session.list_tools()).tools
         openai_tools = _to_openai_tools(tools)
 
+        @traceable(run_type="tool", name="mcp_tool_call")  # shows each tool call in LangSmith
+        async def call_mcp_tool(tool_name: str, tool_args: dict) -> str:
+            result = await session.call_tool(tool_name, tool_args)
+            return "\n".join(
+                c.text for c in result.content if getattr(c, "text", None)
+            ) or json.dumps(str(result))
+
         messages = [SystemMessage(content=SYSTEM), HumanMessage(content=research_prompt)]
 
         for round_no in range(MAX_TOOL_ROUNDS):
@@ -62,10 +70,7 @@ async def _research_async(llm, research_prompt: str) -> Tuple[str, List[str]]:
             for call in ai.tool_calls:
                 used.append(call["name"])
                 try:
-                    result = await session.call_tool(call["name"], call["args"])
-                    text = "\n".join(
-                        c.text for c in result.content if getattr(c, "text", None)
-                    ) or json.dumps(str(result))
+                    text = await call_mcp_tool(call["name"], call["args"])
                 except Exception as exc:  # noqa: BLE001
                     text = f"Tool error: {exc}"
                 messages.append(ToolMessage(content=text, tool_call_id=call["id"]))
