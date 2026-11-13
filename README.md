@@ -1,4 +1,4 @@
-# 🤖 Supervisor Multi-AI-Agent System
+# 🤖 ResearchPilot — Multi-Agent AI Research Assistant
 
 A multi-agent AI application where a **Supervisor** coordinates a **Researcher**, an **Analyst** and a **Writer** to turn a single question into a structured, downloadable report. The Researcher uses **live news and Wikipedia data** through a custom **MCP (Model Context Protocol) server**, and every run can be traced end-to-end in **LangSmith**.
 
