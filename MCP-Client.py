@@ -6,7 +6,7 @@ Host   : the Streamlit app / Researcher agent. It owns the LLM and decides
 Client : an MCP ClientSession opened by the host. It launches
          mcp_news_server.py as a subprocess (stdio), lists its tools and
          forwards the LLM's tool calls to it.
-Server : mcp_news_server.py
+Server : mcp_news_server.py (same folder)
 """
 
 import asyncio
